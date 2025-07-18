@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ShadeScout</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 1rem;
+      background: #fff;
+      color: #222;
+      max-width: 600px;
+      margin: auto;
+    }
+    h1 {
+      text-align: center;
+    }
+    input[type="file"] {
+      display: block;
+      margin: 1rem auto;
+    }
+    canvas {
+      display: block;
+      max-width: 100%;
+      border: 1px solid #ccc;
+      margin: 0 auto;
+      cursor: crosshair;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+    #shadeInfo {
+      text-align: center;
+      margin: 1rem 0;
+      font-weight: bold;
+    }
+    #productRecommendations {
+      margin-top: 1rem;
+    }
+    .product {
+      margin: 1rem 0;
+      padding: 1rem;
+      border: 1px solid #ddd;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      border-radius: 8px;
+    }
+    .product a {
+      color: #007BFF;
+      text-decoration: none;
+    }
+    .product a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>ShadeScout</h1>
+    <input type="file" id="imageUpload" accept="image/*" />
+    <canvas id="imageCanvas"></canvas>
+    <p id="shadeInfo">Select a shade by clicking on the image.</p>
+    <div id="productRecommendations"></div>
+  </main>
+
+  <script>
+    const imageUpload = document.getElementById('imageUpload');
+    const imageCanvas = document.getElementById('imageCanvas');
+    const shadeInfo = document.getElementById('shadeInfo');
+    const productRecommendations = document.getElementById('productRecommendations');
+    const ctx = imageCanvas.getContext('2d');
+
+    let img = new Image();
+
+    imageUpload.addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        img.onload = () => {
+          // Resize canvas to fit image
+          imageCanvas.width = img.width;
+          imageCanvas.height = img.height;
+          ctx.drawImage(img, 0, 0);
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    imageCanvas.addEventListener('click', async e => {
+      if (!img.src) return;
+      const rect = imageCanvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const pixel = ctx.getImageData(x, y, 1, 1).data;
+      const rgb = `rgb(${pixel[0]}, ${pixel[1]}, ${pixel[2]})`;
+      shadeInfo.textContent = `Selected Shade: ${rgb}`;
+
+      productRecommendations.innerHTML = 'Loading products...';
+
+      // Types of products to fetch
+      const productTypes = ['lipstick', 'lip_gloss', 'eyeshadow', 'eyeliner'];
+
+      try {
+        let products = [];
+        for (const type of productTypes) {
+          const res = await fetch(`https://makeup-api.herokuapp.com/api/v1/products.json?product_type=${type}`);
+          const data = await res.json();
+          if (data.length > 0) {
+            // Pick a random product from results
+            const product = data[Math.floor(Math.random() * data.length)];
+            products.push(product);
+          }
+        }
+
+        productRecommendations.innerHTML = '';
+        products.forEach(p => {
+          const div = document.createElement('div');
+          div.className = 'product';
+          div.innerHTML = `
+            <strong>${p.brand} - ${p.name}</strong><br>
+            Price: ${p.price ? `$${p.price}` : 'N/A'}<br>
+            <a href="${p.product_link}" target="_blank" rel="noopener noreferrer">View Product</a>
+          `;
+          productRecommendations.appendChild(div);
+        });
+
+      } catch (error) {
+        productRecommendations.textContent = 'Failed to load products.';
+      }
+    });
+  </script>
+</body>
+</html>
